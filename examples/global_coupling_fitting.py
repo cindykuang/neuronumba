@@ -61,11 +61,11 @@ def load_subjects_data(fmri_path):
     for path in os.listdir(fmri_path):
         subject_path = os.path.join(fmri_path, path)
         if os.path.isdir(subject_path):
-            fmri_file = os.path.join(subject_path, 'rFMRI_REST1_LR_BOLD.csv')
+            fmri_file = os.path.join(subject_path, 'rfMRI_REST1_LR_BOLD.csv') #changed
             if not os.path.isfile(fmri_file):
                 raise FileNotFoundError(f"fMRI file <{fmri_file}> not found!")
             # We want the shape of each fmri to be (n_rois, t_max)
-            result[n_sub] = load_2d_matrix(fmri_file).T
+            result[n_sub] = load_2d_matrix(fmri_file, delimiter=',').T #changed
             n_sub += 1
 
     return result
@@ -110,8 +110,8 @@ def simulate(exec_env, g):
     diff_t = time.time() - start_t
     if exec_env['verbose']:
         print(f"Execution time: {diff_t}")
-    data_from = int(signal.shape[0] * t_warmup / (t_max_neuronal + t_warmup))
-    signal = signal[data_from:, :]
+    #data_from = int(signal.shape[0] * t_warmup / (t_max_neuronal + t_warmup)) #changed
+    #signal = signal[data_from:, :] #changed
     return signal
 
 
@@ -133,7 +133,7 @@ def simulate_single_subject(exec_env, g):
                                 constant_values=np.nan)
         tmp2 = tmp1.reshape(n, int(tmp1.shape[0]/n), -1)
         bds = np.nanmean(tmp2, axis=0)
-    return bds
+    return signal, bds #changed
 
 
 def process_bold_signals(bold_signals, exec_env):
@@ -187,13 +187,15 @@ def eval_one_param(exec_env, g):
             hdf.savemat(J_file_name_pattern, {'J': J})
         exec_env['J'] = J
     simulated_bolds = {}
+    simulated_raw = {} #changed
     num_subjects = exec_env['num_subjects']
     for nsub in range(num_subjects):  # trials. Originally it was 20.
         print(f"   Simulating g={g} -> subject {nsub}/{num_subjects}!!!")
-        bds = simulate_single_subject(exec_env, g)
+        raw_signal, bds = simulate_single_subject(exec_env, g) #changed
         while np.isnan(bds).any() or (np.abs(bds) > np.inf).any():  # This is certainly dangerous, we can have an infinite loop... let's hope not! ;-)
             raise RuntimeError(f"Numeric error computing subject {nsub}/{num_subjects} for g={g}")
         simulated_bolds[nsub] = bds
+        simulated_raw[nsub] = raw_signal
         gc.collect()
 
     dist = process_bold_signals(simulated_bolds, exec_env)
@@ -270,7 +272,7 @@ def run():
     parser.add_argument("--model", help="Model to use (Hopf, Deco2014)", type=str, default='Hopf')
     parser.add_argument("--observable", help="Observable to use (FC, phFCD, swFCD)", type=str, default='phFCD')
     parser.add_argument("--out-path", help="Path to folder for output results", type=str, required=True)
-    parser.add_argument("--tr", help="Time resolution of fMRI scanner (seconds)", type=float, required=True)
+    parser.add_argument("--tr", help="Time resolution of fMRI scanner (milliseconds)", type=float, required=True) #changed to ms
     parser.add_argument("--sc-scaling", help="Scaling factor for the SC matrix", type=float, default=0.2)
     parser.add_argument("--tmax", help="Override simulation time (seconds)", type=float, required=False)
     parser.add_argument("--fmri-path", help="Path to fMRI timeseries data", type=str, required=True)
@@ -280,11 +282,12 @@ def run():
     # This is the data related to the dataset that we are going to load.
     # For your dataset, you need to figure these values
 
-    # Time resolution parameter of the fMRI data (seconds). Each dataset will have its own tr value
+    # Time resolution parameter of the fMRI data (milliseconds). Each dataset will have its own tr value #changed to ms
     # depending on the scanner setting used to capture the BOLD signal
     tr = args.tr
     # We will discard the first t_min seconds of the simulation
-    t_min = 10.0 * tr / 1000.0
+    # t_min = 10.0 * tr / 1000.0 #changed
+    t_min = 20 #seconds
 
     fmris = load_subjects_data(args.fmri_path)
     n_frmis = len(fmris)
@@ -297,14 +300,14 @@ def run():
     # Compute the simulation length according to input data
     t_max = t_max * tr / 1000.0 if args.tmax is None else args.tmax
     # Compute simulation time in milliseconds
-    t_max_neuronal = (t_max + t_min - 1) * 1000.0
+    t_max_neuronal = (t_max + t_min) * 1000.0
     t_warmup = t_min * 1000.0
 
     # Common integration parameters
     # Integrations step (ms)
-    dt = 0.1
+    dt = 0.09
     # Sampling period from the raw signal data (ms)
-    sampling_period = 1.0
+    sampling_period = 0.72
 
     # Load structural connectivity matrix. In our case, we average all the SC matrices of all subjects
     sc_norm = load_sc(args.fmri_path, args.sc_scaling)
@@ -362,7 +365,7 @@ def run():
 
     out_file_name_pattern = os.path.join(out_file_path, 'fitting_g{}.mat')
 
-    n_subj = args.nsubj if args.nsubj is not None else n_frmis
+    n_subj = args.nsubj if args.nsubj is not None else n_fmris #changed, typo
     if args.g is not None:
         # Single point execution for debugging purposes
         compute_g({
@@ -388,6 +391,7 @@ def run():
         gs = np.arange(g_Start, g_End + g_Step, g_Step)
 
         # We use parallel processing to compute all the simulations
+        with ProcessPool
         ee = [{
             'verbose': True,
             'i': i,
@@ -467,7 +471,7 @@ def run():
 
 if __name__ == '__main__':
     # Change False to True if you want to run a full sweep of all combination of models and observables
-    if True:
+    if False: #changed
         models = ['Deco2014', 'Hopf', 'Montbrio']
         observables = ['FC', 'phFCD', 'swFCD']
         args = [sys.argv[0], '--nproc', '5', '--g-range', '1', '20', '0.2', '--tr', '720', '--tmax', '600', '--fmri-path', './Data_Raw/ebrains_popovych', '--out-path', './Data_Produced/ebrains_popovych']
