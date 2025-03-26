@@ -198,6 +198,22 @@ def eval_one_param(exec_env, g):
         simulated_raw[nsub] = raw_signal
         gc.collect()
 
+    output_tcs_path = os.path.join(exec_env['out_file_path'], "timeseries")
+    if not os.path.exists(output_tcs_path):
+    	os.makedirs(output_tcs_path, exist_ok=True)
+    	
+    # added, changed the following up until dist
+    
+    # save raw neural tcs (though has already been through Temporal_Average monitor)
+    temp_avg_neural_tcs_name = os.path.join(output_tcs_path, f'temp_avg_neural_tcs_{g}.mat')
+    raw_neural_dict = {f'subject_{nsub}': simulated_raw[nsub] for nsub in simulated_raw}
+    hdf.savemat(temp_avg_neural_tcs_name, raw_neural_dict)
+    
+    # save bold tcs (should be 1200 timepoints of 0.72s each)
+    bold_sim_tcs_name = os.path.join(output_tcs_path, f'bold_sim_tcs_{g}.mat')
+    bold_sim_dict = {f'subject_{nsub}': simulated_bolds[nsub] for nsub in simulated_bolds}
+    hdf.savemat(bold_sim_tcs_name, bold_sim_dict)
+    
     dist = process_bold_signals(simulated_bolds, exec_env)
     # now, add {label: currValue} to the dist dictionary, so this info is in the saved file (if using the decorator @loadOrCompute)
     dist['g'] = g
@@ -290,10 +306,10 @@ def run():
     t_min = 20 #seconds
 
     fmris = load_subjects_data(args.fmri_path)
-    n_frmis = len(fmris)
+    n_fmris = len(fmris) #changed, typo
     n_rois, t_max = fmris[next(iter(fmris))].shape
 
-    timeseries = np.zeros((n_frmis, n_rois, t_max))
+    timeseries = np.zeros((n_fmris, n_rois, t_max)) #changed, typo
     for i, fmri in enumerate(fmris.values()):
         timeseries[i, :, :] = fmri
 
@@ -338,7 +354,8 @@ def run():
     observable_name = None
     if args.observable == 'FC':
         observable_name = 'FC'
-        observables = {observable_name: (FC(), AveragingAccumulator(), PearsonSimilarity(), None)}
+        bpf_emp = BandPassFilter(k=2, flp=0.01, fhi=0.09, tr=tr, apply_detrend=True, apply_demean=True) #changed, added
+        observables = {observable_name: (FC(), AveragingAccumulator(), PearsonSimilarity(), bpf_emp)}
     elif args.observable == 'phFCD':
         observable_name = 'phFCD'
         observables = {observable_name: (PhFCD(), ConcatenatingAccumulator(), KolmogorovSmirnovStatistic(), None)}
@@ -380,6 +397,7 @@ def run():
             'bold': bold,
             'bold_model': BoldStephan2008().configure(),
             'out_file_name_pattern': out_file_name_pattern,
+            'out_file_path': out_file_path, #changed, added
             'num_subjects': n_subj,
             't_max_neuronal': t_max_neuronal,
             't_warmup': t_warmup,
@@ -405,6 +423,7 @@ def run():
             'bold': bold,
             'bold_model': BoldStephan2008().configure(),
             'out_file_name_pattern': out_file_name_pattern,
+            'out_file_path': out_file_path, #changed, added
             'num_subjects': n_subj,
             't_max_neuronal': t_max_neuronal,
             't_warmup': t_warmup,
