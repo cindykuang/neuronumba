@@ -395,7 +395,7 @@ def run():
             'observables': copy.deepcopy(observables),
             'obs_var': obs_var,
             'bold': bold,
-            'bold_model': BoldStephan2008().configure(),
+            'bold_model': BoldStephan2008(tr=tr).configure(), #NEED TO SET TR (in ms)
             'out_file_name_pattern': out_file_name_pattern,
             'out_file_path': out_file_path, #changed, added
             'num_subjects': n_subj,
@@ -421,7 +421,7 @@ def run():
             'observables': copy.deepcopy(observables),
             'obs_var': obs_var,
             'bold': bold,
-            'bold_model': BoldStephan2008().configure(),
+            'bold_model': BoldStephan2008(tr=tr).configure(), #NEED TO SET TR (in ms)
             'out_file_name_pattern': out_file_name_pattern,
             'out_file_path': out_file_path, #changed, added
             'num_subjects': n_subj,
