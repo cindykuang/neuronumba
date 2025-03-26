@@ -9,7 +9,7 @@ import sys
 
 import h5py
 import numpy as np
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import matplotlib.pyplot as plt
 from numpy.ma.core import repeat
 
@@ -391,8 +391,8 @@ def run():
         gs = np.arange(g_Start, g_End + g_Step, g_Step)
 
         # We use parallel processing to compute all the simulations
-        with ProcessPool
-        ee = [{
+        # prepare common execution environment
+        exec_env = {
             'verbose': True,
             'i': i,
             'model': copy.deepcopy(model),
@@ -409,50 +409,36 @@ def run():
             't_max_neuronal': t_max_neuronal,
             't_warmup': t_warmup,
             'sampling_period': sampling_period,
-            'force_recomputations': False,
-        } for _ in gs]
+            'force_recomputations': False
+        }
 
         results = []
-        while len(gs) > 0:
-            pool = ProcessPoolExecutor(max_workers=args.nproc)
-            futures = []
-            print(f"EXECUTOR --- START cycle for {len(gs)} gs")
-            for g in gs:
-                exec_env = {
-                    'verbose': True,
-                    'i': i,
-                    'model': copy.deepcopy(model),
-                    'integrator': copy.deepcopy(integrator),
-                    'weights': sc_norm,
-                    'processed': processed,
-                    'tr': tr,
-                    'observables': copy.deepcopy(observables),
-                    'obs_var': obs_var,
-                    'bold': bold,
-                    'bold_model': BoldStephan2008().configure(),
-                    'out_file_name_pattern': out_file_name_pattern,
-                    'num_subjects': n_subj,
-                    't_max_neuronal': t_max_neuronal,
-                    't_warmup': t_warmup,
-                    'sampling_period': sampling_period
+        failed_gs = []
+
+        try:
+            with ProcessPoolExecutor(max_workers=args.nproc) as pool: #changed
+                futures = {
+                    pool.submit(compute_g, exec_env, g): g
+                    for g in gs
                 }
-                futures.append((g, pool.submit(compute_g, exec_env, g)))
 
-            while any([not f.done() for _, f in futures]):
-                time.sleep(5)
+                for future in as_completed(futures):
+                    g = futures[future]
+                    try:
+                        result = future.result() #key output variable: results
+                        results.append(result)
+                        print(f"EXECUTOR --- FINISHED process for g={g}")
+                    except Exception as exc:
+                        print(f"EXECUTOR --- FAIL for g={g}: {exc}")
+                        failed_gs.append(g)
 
-            gs = []
-            for g, f in futures:
-                try:
-                    result = f.result()
-                    results.append(result)
-                    print(f"EXECUTOR --- FINISHED process for g={g}")
-                except Exception as exc:
-                    f.cancel()
-                    print(f"EXECUTOR --- FAIL. Restarting process for g={g}")
-                    gs.append(g)
+        except KeyboardInterrupt: #changed
+            print("KeyboardInterrupt caught in main process. Shutting down executor and cancelling tasks...") #changed
+            pool.shutdown(wait=False, cancel_futures=True) #changed
+            sys.exit(1) #changed
 
-            pool.shutdown(wait=False,cancel_futures=True)
+        if failed_gs:
+            print(f"Failed to compute for global coupling values: {failed_gs}")
 
         fig, ax = plt.subplots()
         rs = sorted(results, key=lambda r: r['g'])
