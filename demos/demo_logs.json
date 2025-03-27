@@ -1,0 +1,46 @@
+{" just setup GitHub: forked neich and merged global_coupling_fitting.py with their new changes (new J functionality) and mine (new time variables). completely new start with this local repo! tracking cindykuang/neuronumba.git"}
+
+{
+  "demo_1": {
+    "name": "1_bds_sim_output_raw_neural_tcs"
+    "date": "2025-03-26",
+    "parameters": {"fMRI data": parcellated 1200x70 by my own code in exploring_neuronumba_v2.py,
+        	   "model": Deco2014,
+    		   "observable": [FC],
+		   "parcellation": D-K atlas,
+		   "structural data": Counts.csv (D-K atlas)}, not z-scored or demeaned/detrended
+		   "n_subjs": 10,
+		   "tr": 720ms,
+		   "t_min": 20s, 
+		   "sampling_period": 0.72ms
+		   }
+		   
+    "notes": "slowly added in fixes to script. figured out timing variables. now can output raw and BOLD tcs at (1227778, 70) and (1200, 70) respectively. added bpf for sim in observables[ds][3]. added in explicit tr=tr in Stephan2008 BOLD model. edited parallel processing pool.",
+    "command": "PYTHONPATH=/mnt/storage/neuronumba/demos/1_testing_new_J's_output_raw_neural_tcs python3 global_coupling_fitting.py --nproc 3 --model Deco2014 --observable FC --g-range 1.0 2.4 0.2 --tr 720 --fmri-path ./Data_Raw --out-path ./Data_Produced",
+    "results": "pretty ok? correct number of timepoints now. unclear whether bpf the sim data improves FC or makes it worse. must keep in mind -"
+    " - the 'raw' data has still been averaged in temporal average monitor **Niall says this is ok"
+    " - the 'bold' data saved has NOT been bpf **just remember to do this later"
+    " - J_i functionality has been added by neich but is not being called currently bc it's not set in exec_env. Also right now set to Deco2014 - unclear whether this will work." 
+    " - bpf only written for FC() right now"
+  }
+  
+  
+{
+  "demo_2": { RUNNING ALL 4 RES OF MIST NOW 
+    "name": "2_MIST_parcellations"
+    "date": "2025-03-27",
+    "parameters": {"fMRI data": parcellated 1200x31 by EBrains repo, (and the other res)
+        	   "model": Deco2014,
+    		   "observable": [FC],
+		   "parcellation": 031-MIST, then running bash script for 056-MIST, 103-MIST, 167-MIST
+		   "structural data": Counts.csv (031-MIST), not z-scored or demeaned/detrended
+		   "n_subjs": 29,
+		   "tr": 720ms,
+		   "t_min": 20s, 
+		   "sampling_period": 0.72ms
+		   },
+		   
+    "command": "PYTHONPATH=/mnt/storage/neuronumba/demos/2_MIST_parcellations python3 global_coupling_fitting.py --nproc 3 --model Deco2014 --observable FC --g-range 1.0 2.4 0.2 --tr 720 --fmri-path ./Data_Raw --out-path ./Data_Produced",
+    "notes": "   Processing signal 1/29 Subject: 0 (1200x31) running! had to change delimiter settings for load_2d_matrix",
+    "results": "I think successful? not sure why the trends are so different for diff res"
+    
