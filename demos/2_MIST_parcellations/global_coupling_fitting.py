@@ -18,7 +18,7 @@ from numpy.ma.core import repeat
 from neuronumba.bold import BoldStephan2008
 from neuronumba.observables.sw_fcd import SwFCD
 from neuronumba.simulator.models import Deco2014
-from neuronumba.fitting.fic.fic import FICDeco2014
+from neuronumba.fitting.fic.fic import FICDeco2014, FICHerzog2022
 from neuronumba.simulator.models.montbrio import Montbrio
 from neuronumba.tools import filterps, hdf
 from neuronumba.tools.filters import BandPassFilter
@@ -177,13 +177,14 @@ def process_bold_signals(bold_signals, exec_env):
 
 def eval_one_param(exec_env, g):
     if 'J_file_name_pattern' in exec_env:
-        J_file_name_pattern = exec_env['J_file_name_pattern'].format(np.round(g, decimals=2))
+        J_file_name_pattern = os.path.join(exec_env['out_file_path'], f"{exec_env['J_file_name_pattern']}.{g:.2f}.mat")
         if os.path.exists(J_file_name_pattern):
             J = hdf.loadmat(J_file_name_pattern)['J']
         else:
-            J = FICDeco2014(model=exec_env['model'],
-                            obs_var=exec_env['obs_var'],
-                            integrator=exec_env['integrator']).compute_J(exec_env['weights'], g)
+            #J = FICDeco2014(model=exec_env['model'],
+                            #obs_var=exec_env['obs_var'],
+                            #integrator=exec_env['integrator']).compute_J(exec_env['weights'], g)
+            J = FICHerzog2022().compute_J(exec_env['weights'], g) #added!
             hdf.savemat(J_file_name_pattern, {'J': J})
         exec_env['J'] = J
     simulated_bolds = {}
@@ -205,12 +206,12 @@ def eval_one_param(exec_env, g):
     # added, changed the following up until dist
     
     # save raw neural tcs (though has already been through Temporal_Average monitor)
-    temp_avg_neural_tcs_name = os.path.join(output_tcs_path, f'temp_avg_neural_tcs_{g}.mat')
+    temp_avg_neural_tcs_name = os.path.join(output_tcs_path, f'temp_avg_neural_tcs_{g:.2f}.mat')
     raw_neural_dict = {f'subject_{nsub}': simulated_raw[nsub] for nsub in simulated_raw}
     hdf.savemat(temp_avg_neural_tcs_name, raw_neural_dict)
     
     # save bold tcs (should be 1200 timepoints of 0.72s each)
-    bold_sim_tcs_name = os.path.join(output_tcs_path, f'bold_sim_tcs_{g}.mat')
+    bold_sim_tcs_name = os.path.join(output_tcs_path, f'bold_sim_tcs_{g:.2f}.mat')
     bold_sim_dict = {f'subject_{nsub}': simulated_bolds[nsub] for nsub in simulated_bolds}
     hdf.savemat(bold_sim_tcs_name, bold_sim_dict)
     
@@ -292,6 +293,8 @@ def run():
     parser.add_argument("--sc-scaling", help="Scaling factor for the SC matrix", type=float, default=0.2)
     parser.add_argument("--tmax", help="Override simulation time (seconds)", type=float, required=False)
     parser.add_argument("--fmri-path", help="Path to fMRI timeseries data", type=str, required=True)
+    parser.add_argument("--fic", help="FIC method to use (Deco2014, Herzog)", type=str, 
+default='Herzog') #added!!
 
     args = parser.parse_args()  # for example, for a single test, use --ge-range 1.0 10.0 1.0
 
@@ -403,6 +406,7 @@ def run():
             't_warmup': t_warmup,
             'sampling_period': sampling_period,
             'force_recomputations': False,
+            'J_file_name_pattern': args.fic #added
         }, args.g)
     elif args.g_range is not None:
         [g_Start, g_End, g_Step] = args.g_range
@@ -428,7 +432,8 @@ def run():
             't_max_neuronal': t_max_neuronal,
             't_warmup': t_warmup,
             'sampling_period': sampling_period,
-            'force_recomputations': False
+            'force_recomputations': False,
+            'J_file_name_pattern': args.fic #added
         }
 
         results = []

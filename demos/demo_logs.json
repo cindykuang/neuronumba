@@ -8,7 +8,7 @@
         	   "model": Deco2014,
     		   "observable": [FC],
 		   "parcellation": D-K atlas,
-		   "structural data": Counts.csv (D-K atlas)}, not z-scored or demeaned/detrended
+		   "structural data": Counts.csv (D-K atlas), not z-scored or demeaned/detrended
 		   "n_subjs": 10,
 		   "tr": 720ms,
 		   "t_min": 20s, 
@@ -23,6 +23,7 @@
     " - J_i functionality has been added by neich but is not being called currently bc it's not set in exec_env. Also right now set to Deco2014 - unclear whether this will work." 
     " - bpf only written for FC() right now"
   }
+}
   
   
 {
@@ -42,5 +43,49 @@
 		   
     "command": "PYTHONPATH=/mnt/storage/neuronumba/demos/2_MIST_parcellations python3 global_coupling_fitting.py --nproc 3 --model Deco2014 --observable FC --g-range 1.0 2.4 0.2 --tr 720 --fmri-path ./Data_Raw --out-path ./Data_Produced",
     "notes": "   Processing signal 1/29 Subject: 0 (1200x31) running! had to change delimiter settings for load_2d_matrix",
-    "results": "I think successful? not sure why the trends are so different for diff res"
-    
+    "results": "I think successful? not sure why the trends are so different for diff res. 056 trend is weird, 103 trend is weird - am I sure the bash script is running same as when I run the separate command? 031 was run with bash command, 056 and 103 were run with bash script to loop, then 167 was run with bash command (1 proc bc it failed). strange trends - up and down not smooth? pretty drastic diff between runs. I manually reran 056-MIST (with bash command) to see if continuous decr in fitting would change but no, just spikier.",
+    "conclusion": "FC does decr with granularity of parcellation"
+    }
+}
+
+{
+  "demo_3": { RUNNING ALL 4 RES OF CRADDOCK
+    "name": "3_CRADDOCK_parcellations"
+    "date": "2025-03-28",
+    "parameters": {"fMRI data": parcellated by EBrains repo (at each res)
+        	   "model": Deco2014,
+    		   "observable": [FC],
+		   "parcellation": running bash script for all 4 Craddock parcellations
+		   "structural data": Counts.csv (from EBrains), not z-scored or demeaned/detrended
+		   "n_subjs": 29,
+		   "tr": 720ms,
+		   "t_min": 20s, 
+		   "sampling_period": 0.72ms
+		   },
+		   
+    "command": "PYTHONPATH=/mnt/storage/neuronumba/demos/3_CRADDOCK_parcellations python3 global_coupling_fitting.py --nproc 2 --model Deco2014 --observable FC --g-range 1.0 2.4 0.2 --tr 720 --fmri-path ./Data_Raw --out-path ./Data_Produced",
+    "notes": "terminated early - decided to first test MIST with FIC",
+    "results": ""
+    }
+}
+
+{
+  "demo_4": { RUNNING ALL 4 RES OF MIST WITH HERZOGFIC THIS TIME
+    "name": "2_MIST_parcellations"
+    "date": "2025-03-29",
+    "parameters": {"fMRI data": parcellated by EBrains repo (at each res)
+        	   "model": Deco2014,
+    		   "observable": [FC],
+		   "parcellation": running bash script for all 4 MIST parcellations
+		   "structural data": Counts.csv (from EBrains), not z-scored or demeaned/detrended
+		   "n_subjs": 29,
+		   "tr": 720ms,
+		   "t_min": 20s, 
+		   "sampling_period": 0.72ms
+		   },
+		   
+    "command": "PYTHONPATH=/mnt/storage/neuronumba/demos/3_CRADDOCK_parcellations python3 global_coupling_fitting.py --nproc 2 --model Deco2014 --observable FC --g-range 1.0 2.4 0.2 --tr 720 --fmri-path ./Data_Raw --out-path ./Data_Produced --fic Herzog",
+    "notes": "added/integrated J functionality to gcf script, printing out Js now, will see if this helps sway the optimal G higher (bc before without FIC maybe biased towards lower G)",
+    "results": ""
+    }
+}
