@@ -216,3 +216,148 @@ class TemporalAverage(Monitor):
                     bnb_observed[i, :, :] = i_bnb_observed.sum(axis=0) / ibo_shape[0]
 
         return m_sample
+        
+        
+class Bold(Monitor):
+    """
+
+    Base class for the Bold monitor.
+
+    **Attributes**
+
+        hrf_kernel: the haemodynamic response function (HRF) used to compute
+                    the BOLD (Blood Oxygenation Level Dependent) signal.
+
+        length    : duration of the hrf in seconds.
+
+        period    : the monitor's period
+
+    **References**:
+
+    .. [B_1997] Buxton, R. and Frank, L., *A Model for the Coupling between
+        Cerebral Blood Flow and Oxygen Metabolism During Neural Stimulation*,
+        17:64-72, 1997.
+
+    .. [Fr_2000] Friston, K., Mechelli, A., Turner, R., and Price, C., *Nonlinear
+        Responses in fMRI: The Balloon Model, Volterra Kernels, and Other
+        Hemodynamics*, NeuroImage, 12, 466 - 477, 2000.
+
+    .. [Bo_1996] Geoffrey M. Boynton, Stephen A. Engel, Gary H. Glover and David
+        J. Heeger (1996). Linear Systems Analysis of Functional Magnetic Resonance
+        Imaging in Human V1. J Neurosci 16: 4207-4221
+
+    .. [Po_2000] Alex Polonsky, Randolph Blake, Jochen Braun and David J. Heeger
+        (2000). Neuronal activity in human primary visual cortex correlates with
+        perception during binocular rivalry. Nature Neuroscience 3: 1153-1159
+
+    .. [Gl_1999] Glover, G. *Deconvolution of Impulse Response in Event-Related BOLD fMRI*.
+        NeuroImage 9, 416-429, 1999.
+
+    .. note:: gamma and polonsky are based on the nitime implementation
+              http://nipy.org/nitime/api/generated/nitime.fmri.hrf.html
+
+    .. note:: see Tutorial_Exploring_The_Bold_Monitor
+
+    """
+    _ui_name = "BOLD"
+
+    period = Float(
+        label="Sampling period (ms)",
+        default=2000.0,
+        doc="""For the BOLD monitor, sampling period in milliseconds must be
+        an integral multiple of 500. Typical measurment interval (repetition
+        time TR) is between 1-3 s. If TR is 2s, then Bold period is 2000ms.""")
+
+    hrf_kernel = Attr(
+        equations.HRFKernelEquation,
+        label="Haemodynamic Response Function",
+        default=equations.FirstOrderVolterra(),
+        required=True,
+        doc="""A tvb.datatypes.equation object which describe the haemodynamic
+        response function used to compute the BOLD signal.""")
+
+    hrf_length = Float(
+        label="Duration (ms)",
+        default=20000.,
+        doc= """Duration of the hrf kernel""",)
+        #order=-1)
+
+    _interim_period = None
+    _interim_istep = None
+    _interim_stock = None
+    _stock_steps = None
+    _stock_time = None
+    _stock_sample_rate = 2 ** -2
+    hemodynamic_response_function = None
+
+    def compute_hrf(self):
+        """
+        Compute the hemodynamic response function.
+
+        """
+        self._stock_sample_rate = 2.0**-2 #/ms    # NOTE: An integral multiple of dt
+        magic_number = self.hrf_length #* 0.8      # truncates G, volterra kernel, once ~zero
+        #Length of history needed for convolution in steps @ _stock_sample_rate
+        required_history_length = self._stock_sample_rate * magic_number # 3840 for tau_s=0.8
+        self._stock_steps = numpy.ceil(required_history_length).astype(int)
+        stock_time_max    = magic_number/1000.0                                # [s]
+        stock_time_step   = stock_time_max / self._stock_steps                 # [s]
+        self._stock_time  = numpy.arange(0.0, stock_time_max, stock_time_step) # [s]
+        self.log.debug("Bold requires %d steps for HRF kernel convolution", self._stock_steps)            # if the input has not been obtained from file
+        #Compute the HRF kernel
+        G = self.hrf_kernel.evaluate(self._stock_time)
+        if isinstance(self.hrf_kernel, equations.RestingStateHRF): 
+            #rsHRF for each region, reversed and upsampled to self._stock_steps
+            self.hemodynamic_response_function = G 
+        else :
+            #Reverse it, need it into the past for matrix-multiply of stock
+            G = G[::-1]
+            self.hemodynamic_response_function = G[numpy.newaxis, :]
+        #Interim stock configuration
+        self._interim_period = 1.0 / self._stock_sample_rate #period in ms
+        self._interim_istep = int(round(self._interim_period / self.dt)) # interim period in integration time steps
+        self.log.debug('Bold HRF shape %s, interim period & istep %d & %d',
+                  self.hemodynamic_response_function.shape, self._interim_period, self._interim_istep)                                                       
+
+    def config_for_sim(self, simulator):
+        super(Bold, self).config_for_sim(simulator)
+        self.compute_hrf()
+        if isinstance(self.hrf_kernel, equations.RestingStateHRF):                          # if HRF has been obtained from a file
+            if self.hemodynamic_response_function.shape[0] != simulator.number_of_nodes:    # if the number of nodes do not match for the input and simulator
+                self.log.error("Unexpect File Input! Expected Input of shape: %d, Obtained Input of Shape: %d", simulator.number_of_nodes, self.hemodynamic_response_function.shape[0])
+        sample_shape = self.voi.shape[0], simulator.number_of_nodes, simulator.model.number_of_modes
+        self._interim_stock = numpy.zeros((self._interim_istep,) + sample_shape)
+        self.log.debug("BOLD inner buffer %s %.2f MB" % (
+            self._interim_stock.shape, self._interim_stock.nbytes/2**20))
+        self._stock = numpy.zeros((self._stock_steps,) + sample_shape)
+        self.log.debug("BOLD outer buffer %s %.2f MB" % (
+            self._stock.shape, self._stock.nbytes/2**20))
+
+    def sample(self, step, state):
+        # Update the interim-stock at every step
+        self._interim_stock[((step % self._interim_istep) - 1), :] = state[self.voi, :]
+        # At stock's period update it with the temporal average of interim-stock
+        if step % self._interim_istep == 0:
+            avg_interim_stock = numpy.mean(self._interim_stock, axis=0)
+            self._stock[((step//self._interim_istep % self._stock_steps) - 1), :] = avg_interim_stock
+        # At the monitor's period, apply the heamodynamic response function to
+        # the stock and return the resulting BOLD signal.
+        if step % self.istep == 0:
+            time = step * self.dt
+            hrf = numpy.roll(self.hemodynamic_response_function,
+                             ((step//self._interim_istep % self._stock_steps) - 1),
+                             axis=1)
+            if isinstance(self.hrf_kernel, equations.RestingStateHRF):           # rsHRF has been obtained from a file
+                for i in range(hrf.shape[0]):                                    # convolving for all the nodes separately
+                    if i == 0:
+                        bold = numpy.expand_dims(numpy.tensordot(self._stock.transpose(1, 2, 0, 3)[:,i,:,:], hrf[i], axes=([1], [0])), axis = 0)
+                    else:
+                        bold = numpy.vstack((bold, numpy.expand_dims(numpy.tensordot(self._stock.transpose(1, 2, 0, 3)[:,i,:,:], hrf[i], axes=([1], [0])), axis = 0)))
+                bold = bold.transpose(1, 0, 2)
+            elif isinstance(self.hrf_kernel, equations.FirstOrderVolterra):
+                k1_V0 = self.hrf_kernel.parameters["k_1"] * self.hrf_kernel.parameters["V_0"]
+                bold = (numpy.dot(hrf, self._stock.transpose((1, 2, 0, 3))) - 1.0) * k1_V0
+            else:
+                bold = numpy.dot(hrf, self._stock.transpose((1, 2, 0, 3)))
+            bold = bold.reshape(self._stock.shape[1:])
+            return [time, bold]
