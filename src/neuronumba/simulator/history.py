@@ -31,6 +31,7 @@ class HistoryDense(History):
     n_time = Attr(dependant=True)
 
     def _init_dependant(self):
+        super()._init_dependant()
         self.i_delays = np.rint(self.delays / self.dt).astype(np.int32)
         self.n_time = np.max(self.i_delays) + 1
         self.buffer = np.zeros((len(self.c_vars), self.n_time, self.n_rois))
@@ -39,6 +40,7 @@ class HistoryDense(History):
         # buffer = self.buffer
         n_cvars = self.n_cvars
         c_vars = self.c_vars
+        n_time = self.n_time  # changed, added
         # addr = buffer.ctypes.data
         b_addr, b_shape, b_dtype = addr.get_addr(self.buffer)
 
@@ -48,7 +50,7 @@ class HistoryDense(History):
             #                  dtype=buffer.dtype)
             data = addr.create_carray(b_addr, b_shape, b_dtype)
             for i in range(n_cvars):
-                data[i, step % self.n_time, :] = state[c_vars[i], :]
+                data[i, step % n_time, :] = state[c_vars[i], :] #changed, took away self.n_time reference
 
         return c_update
 
@@ -61,9 +63,12 @@ class HistoryDense(History):
         n_cvars = self.n_cvars
         n_rois = self.n_rois
         g = self.g
+        
+        b_addr, b_shape, b_dtype = addr.get_addr(self.buffer)  # changed, added - Get buffer address
 
         @nb.njit(nb.f8[:, :](nb.intc))
         def h_sample(step):
+            buffer = addr.create_carray(b_addr, b_shape, b_dtype)  # changed, added - Create numba-compatible buffer
             time_idx = (step - 1 - i_delays + n_time) % n_time
             result = np.empty((n_cvars, n_rois))
             for v in c_vars:

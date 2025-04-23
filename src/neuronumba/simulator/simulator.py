@@ -86,15 +86,14 @@ def simulate_nodelay(model, integrator, weights, obs_var, sampling_period, t_max
 # =====================================================================================
 # my own method using HistoryDense
 # =====================================================================================    
-def simulate_withdelays(model, integrator, weights, delays, obs_var, sampling_period, t_max_neuronal, t_warmup):
-    n_rois = weights.shape[0]
-    lengths = np.random.rand(n_rois, n_rois)*10.0 + 1.0
-    speed = 1.0
+def simulate_withdelays(model, integrator, weights, delays, obs_var, sampling_period, t_max_neuronal, t_warmup, speed, g, dt):
+    lengths = delays
+    speed = speed
     con = Connectivity(weights=weights, lengths=lengths, speed=speed)
-    history = HistoryDense(delays=delays) #changed, added
+    history = HistoryDense(delays=delays, dt=dt, g=g, weights=weights, c_vars=[obs_var]) #changed, added
     monitor = TemporalAverage(period=sampling_period, monitor_vars=model.get_var_info([obs_var]))
     s = Simulator(connectivity=con, model=model, history=history, integrator=integrator, monitors=[monitor])
     s.run(0, t_warmup + t_max_neuronal)
     data = monitor.data(obs_var)
     data_from = int(data.shape[0] * t_warmup / (t_max_neuronal + t_warmup))
-    return data[data_from:, :]
+    return data[data_from:, :]        
