@@ -4,7 +4,7 @@ from numba import njit
 from neuronumba.basic.attr import Attr
 from neuronumba.bold.base_bold import Bold
 
-class BoldrsHRF(Bold):
+class Bold_rsHRF(Bold):
 
     period = Float(
         label="Sampling period (ms)",
@@ -35,7 +35,7 @@ class BoldrsHRF(Bold):
     _stock_sample_rate = 2 ** -2
     hemodynamic_response_function = None
     
-        def compute_hrf(self):
+    def compute_hrf(self):
         """
         Compute the hemodynamic response function.
 
@@ -64,7 +64,7 @@ class BoldrsHRF(Bold):
         #self.log.debug('Bold HRF shape %s, interim period & istep %d & %d',
                   #self.hemodynamic_response_function.shape, self._interim_period, self._interim_istep)                
                   
-        def _config_vois(self, simulator):
+    def _config_vois(self, simulator):
         self.voi = self.variables_of_interest
         if self.voi is None or self.voi.size == 0:
             self.voi = numpy.r_[:len(simulator.model.variables_of_interest)]
@@ -159,7 +159,7 @@ def compute_bold(self, signal, dt):
     return [bold_signals_2d]
             
             
-b = Bold_Stephan2008_compute_bold(signal)
+b = Bold_rsHRF.compute_bold(signal, dt=dt)
 #step = int(np.round(self.tr / dt))  # each step is the length of the TR, in milliseconds
 #bds = b[step - 1::step, :] # my bold is already downsampled though right? maybe trim here # TODO
 return bds

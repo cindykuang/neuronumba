@@ -219,47 +219,47 @@ class TemporalAverage(Monitor):
         
         
 # class Bold(Monitor):
-#     """
+#      """
+# #     **Attributes**
 
-#     Base class for the Bold monitor.
+# #         hrf_kernel: the haemodynamic response function (HRF) used to compute
+# #                     the BOLD (Blood Oxygenation Level Dependent) signal.
 
-#     **Attributes**
+# #         length    : duration of the hrf in seconds.
 
-#         hrf_kernel: the haemodynamic response function (HRF) used to compute
-#                     the BOLD (Blood Oxygenation Level Dependent) signal.
+# #         period    : the monitor's period
+# #     """
 
-#         length    : duration of the hrf in seconds.
-
-#         period    : the monitor's period
-
-#     **References**:
-
-#     .. [B_1997] Buxton, R. and Frank, L., *A Model for the Coupling between
-#         Cerebral Blood Flow and Oxygen Metabolism During Neural Stimulation*,
-#         17:64-72, 1997.
-
-#     .. [Fr_2000] Friston, K., Mechelli, A., Turner, R., and Price, C., *Nonlinear
-#         Responses in fMRI: The Balloon Model, Volterra Kernels, and Other
-#         Hemodynamics*, NeuroImage, 12, 466 - 477, 2000.
-
-#     .. [Bo_1996] Geoffrey M. Boynton, Stephen A. Engel, Gary H. Glover and David
-#         J. Heeger (1996). Linear Systems Analysis of Functional Magnetic Resonance
-#         Imaging in Human V1. J Neurosci 16: 4207-4221
-
-#     .. [Po_2000] Alex Polonsky, Randolph Blake, Jochen Braun and David J. Heeger
-#         (2000). Neuronal activity in human primary visual cortex correlates with
-#         perception during binocular rivalry. Nature Neuroscience 3: 1153-1159
-
-#     .. [Gl_1999] Glover, G. *Deconvolution of Impulse Response in Event-Related BOLD fMRI*.
-#         NeuroImage 9, 416-429, 1999.
-
-#     .. note:: gamma and polonsky are based on the nitime implementation
-#               http://nipy.org/nitime/api/generated/nitime.fmri.hrf.html
-
-#     .. note:: see Tutorial_Exploring_The_Bold_Monitor
-
-#     """
 #     _ui_name = "BOLD"
+
+#     period = Attr(default=None, required=True)
+#     hrf_kernel = Attr(equations.HRFKernelEquation, label="Hemodynamic Response Function", default=equations.FirstOrderVolterra(), 
+# 			required=True, doc="""A tvb.datatypes.equation object which describe the haemodynamic
+#          response function used to compute the BOLD signal.""")
+#     hrf_length = Attr(default=20000, label="Duration (ms)", doc = """Duration of the hrf kernel""")
+    
+#     _interim_period = Attr(dependant=True)
+#     _interim_istep = Attr(dependant=True)
+#     _interim_stock = Attr(dependant=True)
+#     _stock_steps = Attr(dependant=True)
+#     _stock_time = Attr(dependant=True)
+#     _stock_sample_rate = 2 ** -2
+#     hemodynamic_response_function = Attr(dependant=True)
+
+#     n_interim_samples = Attr(dependant=True)
+#     buffer_state = Attr(dependant=True)
+#     buffer_observed = Attr(dependant=True)
+
+#     i_buffer_state = Attr(dependant=True)
+#     i_buffer_observed = Attr(dependant=True)
+    
+    #     _interim_period = None
+#     _interim_istep = None
+#     _interim_stock = None
+#     _stock_steps = None
+#     _stock_time = None
+#     _stock_sample_rate = 2 ** -2
+#     hemodynamic_response_function = None
 
 #     period = Float(
 #         label="Sampling period (ms)",
