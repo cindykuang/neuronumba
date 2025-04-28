@@ -32,17 +32,17 @@ class HistoryDense(History):
 
     def _init_dependant(self):
         super()._init_dependant()
-        self.i_delays = np.rint(self.delays / self.dt).astype(np.int32)
+        self.i_delays = np.rint(self.delays / self.dt).astype(np.int32)  #108 x 108
         self.n_time = np.max(self.i_delays) + 1
-        self.buffer = np.zeros((len(self.c_vars), self.n_time, self.n_rois))
+        self.buffer = np.zeros((len(self.c_vars), self.n_time, self.n_rois)) #(1, 2762, 108)
 
     def get_numba_update(self):
         # buffer = self.buffer
-        n_cvars = self.n_cvars
-        c_vars = self.c_vars
-        n_time = self.n_time  # changed, added
+        n_cvars = self.n_cvars #1
+        c_vars = self.c_vars #[0]
+        n_time = self.n_time  # changed, added #2762
         # addr = buffer.ctypes.data
-        b_addr, b_shape, b_dtype = addr.get_addr(self.buffer)
+        b_addr, b_shape, b_dtype = addr.get_addr(self.buffer) #7523595264, (1, 2762, 108), float64
 
         @nb.njit(nb.void(nb.intc, nb.f8[:, :]))
         def c_update(step: nb.intc, state: NDA_f8_2d):
