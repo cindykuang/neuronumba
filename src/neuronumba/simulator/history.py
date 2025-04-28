@@ -65,6 +65,18 @@ class HistoryDense(History):
         g = self.g
         
         b_addr, b_shape, b_dtype = addr.get_addr(self.buffer)  # changed, added - Get buffer address
+        #original - works!!
+        @nb.njit(nb.f8[:, :](nb.intc))
+        def h_sample(step):
+            buffer = addr.create_carray(b_addr, b_shape, b_dtype)  # changed, added - Create numba-compatible buffer
+            time_idx = (step - 1 - i_delays + n_time) % n_time
+            result = np.empty((n_cvars, n_rois))
+            for v in c_vars:
+                delayed_state = np.empty((n_rois, n_rois))
+                for i in range(n_rois):
+                    delayed_state[i] = buffer[v, time_idx[i], i]
+                result[v] = np.sum(weights * delayed_state, axis=0) #deleted
+            return g * result 
 
         # @nb.njit(nb.f8[:, :](nb.intc))
         # def h_sample(step):
@@ -79,15 +91,15 @@ class HistoryDense(History):
         #         result[v] = delayed_state #added, changed
         #     return result # g * result #changed
         
-        @nb.njit(nb.f8[:, :](nb.intc))
-        def h_sample(step):
-            buffer = addr.create_carray(b_addr, b_shape, b_dtype)
-            time_idx = (step - 1 - i_delays + n_time) % n_time
-            result = np.empty((n_cvars, n_rois))
-            for i, v in enumerate(c_vars):
-                for j in range(n_rois):
-                    result[i, j] = buffer[v, time_idx[j, j], j]  # Only get diagonal elements
-            return result
+        # @nb.njit(nb.f8[:, :](nb.intc))
+        # def h_sample(step):
+        #     buffer = addr.create_carray(b_addr, b_shape, b_dtype)
+        #     time_idx = (step - 1 - i_delays + n_time) % n_time
+        #     result = np.empty((n_cvars, n_rois))
+        #     for i, v in enumerate(c_vars):
+        #         for j in range(n_rois):
+        #             result[i, j] = buffer[v, time_idx[j, j], j]  # Only get diagonal elements
+        #     return result
         
 
         return h_sample
