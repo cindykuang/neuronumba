@@ -3,28 +3,31 @@ from numba import njit
 
 from neuronumba.basic.attr import Attr
 from neuronumba.bold.base_bold import Bold
+# TODO: need to figure out how to import equations here
 
 class Bold_rsHRF(Bold):
 
-    period = Float(
-        label="Sampling period (ms)",
+    period = Attr( #changed from Float - not sure what effect this has?
         default=720.0,
-        doc="""For the BOLD monitor, sampling period in milliseconds must be
-        an integral multiple of 500. Typical measurment interval (repetition
-        time TR) is between 1-3 s. If TR is 2s, then Bold period is 2000ms.""")
+        required=True)
+        #label="Sampling period (ms)"
+        #doc="""For the BOLD monitor, sampling period in milliseconds must be
+        #an integral multiple of 500. Typical measurment interval (repetition
+        #time TR) is between 1-3 s. If TR is 2s, then Bold period is 2000ms."""
 
-    hrf_kernel = Attr(
-        equations.HRFKernelEquation,
-        label="Haemodynamic Response Function",
-        default=equations.FirstOrderVolterra(),
-        required=True,
-        doc="""A tvb.datatypes.equation object which describe the haemodynamic
-        response function used to compute the BOLD signal.""")
+    #hrf_kernel = Attr(
+        #equations.HRFKernelEquation,
+        #default=equations.FirstOrderVolterra(),
+        #required=True)
+        #label="Haemodynamic Response Function"
+        #doc="""A tvb.datatypes.equation object which describe the haemodynamic
+        #response function used to compute the BOLD signal."""
 
-    hrf_length = Float(
-        label="Duration (ms)",
-        default=24000.,
-        doc= """Duration of the hrf kernel""",)
+    hrf_length = Attr( #changed from Float
+        default=24000,
+        required=True)
+        #label="Duration (ms)"
+        #doc= """Duration of the hrf kernel""",)
         #order=-1)
 
     _interim_period = None
@@ -101,65 +104,66 @@ class Bold_rsHRF(Bold):
         self.log.debug("BOLD outer buffer %s %.2f MB" % (
             self._stock.shape, self._stock.nbytes/2**20))
             
-# this is the sample method from amogh's bold monitors.py
-# def sample():
-
-def compute_bold(self, signal, dt):
-
-    n_steps = signal.shape[0]
-    bold_signals = []
-    bold_times = []
+    # this is the sample method from amogh's bold monitors.py
+    # def sample():
     
-    # for step in range(0 + 1, 0 + n_steps + 1):   
-    for step in range(1, n_steps + 1):    
-    # EVERY STEP: captures the neural activity at each integration step, extract out variable of interest
-    # find position within interim buffer where this current step should store data
-    # % gives remainder when dividing by interim_istep (6) so will cycle 0 1 2 3 4 5 0 1
-    # but bc of -1: will cycle -1 0 1 2 3 4 -1 (-1 means last position in the buffer - wrapping around)
-        bold_monitor._interim_stock[((step % bold_monitor._interim_istep) - 1), 0, :, 0] = signal[step-1, :]
+    def compute_bold(self, signal, dt):
     
-    # EVERY 6 (interim_istep) STEPS: compute an average of the neural activity in this interim window and update the MAIN STOCK
-        if step % bold_monitor._interim_istep == 0:
-            avg_interim_stock = np.mean(bold_monitor._interim_stock, axis=0)
-            bold_monitor._stock[((step//bold_monitor._interim_istep % bold_monitor._stock_steps) - 1), :] = avg_interim_stock
-            # Stores this downsampled activity in the stock buffer used for convolution
+        def Bold_rsHRF_compute_bold(signal, dt):
+            n_steps = signal.shape[0]
+            bold_signals = []
+            bold_times = []
             
-    # EVERY 1000 (istep) STEPS:    
-        if step % bold_monitor.istep == 0:
-            time = step * bold_monitor.dt # true time, given in ms
-            hrf = np.roll(bold_monitor.hemodynamic_response_function,
-                             ((step//bold_monitor._interim_istep % bold_monitor._stock_steps) - 1), # this is just stock buffer position
-                             axis=1)
-        # hrf is shape (108, 6000)
-        # transposes stock array: orig dimensions were (timesteps, state_vars, brain regions, modes) 
-        # or (6000, 1, 108, 1)
-        # but now reordered to: (state_vars, brain regions, timesteps, modes)
-        
-            # convolve each ROI separately
-            for i in range(hrf.shape[0]):                                    
-                if i == 0: 
-                    bold = np.expand_dims(np.tensordot(bold_monitor._stock.transpose(1, 2, 0, 3)[:,i,:,:], hrf[i], axes=([1], [0])), axis = 0)
-                    # (1, 1, 1)
-                else:
-                    bold = np.vstack((bold, np.expand_dims(np.tensordot(bold_monitor._stock.transpose(1, 2, 0, 3)[:,i,:,:], hrf[i], axes=([1], [0])), axis = 0)))
-                    # at the end bold is (108, 1, 1)
+            # for step in range(0 + 1, 0 + n_steps + 1):   
+            for step in range(1, n_steps + 1):    
+            # EVERY STEP: captures the neural activity at each integration step, extract out variable of interest
+            # find position within interim buffer where this current step should store data
+            # % gives remainder when dividing by interim_istep (6) so will cycle 0 1 2 3 4 5 0 1
+            # but bc of -1: will cycle -1 0 1 2 3 4 -1 (-1 means last position in the buffer - wrapping around)
+                bold_monitor._interim_stock[((step % bold_monitor._interim_istep) - 1), 0, :, 0] = signal[step-1, :]
             
-            bold = bold.transpose(1, 0, 2) # now bold is (1, 108, 1)
+            # EVERY 6 (interim_istep) STEPS: compute an average of the neural activity in this interim window and update the MAIN STOCK
+                if step % bold_monitor._interim_istep == 0:
+                    avg_interim_stock = np.mean(bold_monitor._interim_stock, axis=0)
+                    bold_monitor._stock[((step//bold_monitor._interim_istep % bold_monitor._stock_steps) - 1), :] = avg_interim_stock
+                    # Stores this downsampled activity in the stock buffer used for convolution
+                    
+            # EVERY 1000 (istep) STEPS:    
+                if step % bold_monitor.istep == 0:
+                    time = step * bold_monitor.dt # true time, given in ms
+                    hrf = np.roll(bold_monitor.hemodynamic_response_function,
+                                     ((step//bold_monitor._interim_istep % bold_monitor._stock_steps) - 1), # this is just stock buffer position
+                                     axis=1)
+                # hrf is shape (108, 6000)
+                # transposes stock array: orig dimensions were (timesteps, state_vars, brain regions, modes) 
+                # or (6000, 1, 108, 1)
+                # but now reordered to: (state_vars, brain regions, timesteps, modes)
+                
+                    # convolve each ROI separately
+                    for i in range(hrf.shape[0]):                                    
+                        if i == 0: 
+                            bold = np.expand_dims(np.tensordot(bold_monitor._stock.transpose(1, 2, 0, 3)[:,i,:,:], hrf[i], axes=([1], [0])), axis = 0)
+                            # (1, 1, 1)
+                        else:
+                            bold = np.vstack((bold, np.expand_dims(np.tensordot(bold_monitor._stock.transpose(1, 2, 0, 3)[:,i,:,:], hrf[i], axes=([1], [0])), axis = 0)))
+                            # at the end bold is (108, 1, 1)
+                    
+                    bold = bold.transpose(1, 0, 2) # now bold is (1, 108, 1)
+                    
+                    bold_signals.append(bold) # save this for all timepoints
+                    bold_times.append(time)
+                    
+            bold_signals = np.array(bold_signals)  # Should be shape (num_timepoints, 1, 108, 1) # (1227, 1, 108, 1)
+            bold_times = np.array(bold_times)    # (1227,)
             
-            bold_signals.append(bold) # save this for all timepoints
-            bold_times.append(time)
-            
-    bold_signals = np.array(bold_signals)  # Should be shape (num_timepoints, 1, 108, 1) # (1227, 1, 108, 1)
-    bold_times = np.array(bold_times)    # (1227,)
-    
-    bold_signals_truncated = bold_signals[27:, :, :, :] # now ti is (1200, 1, 108, 1) # TODO
-    bold_signals_2d = bold_signals_truncated.reshape(1200, 108) # TODO
-            
-    bold = bold.reshape(bold_monitor._stock.shape[1:]) # but bold is already this?
-    return [bold_signals_2d]
-            
-            
-b = Bold_rsHRF.compute_bold(signal, dt=dt)
-#step = int(np.round(self.tr / dt))  # each step is the length of the TR, in milliseconds
-#bds = b[step - 1::step, :] # my bold is already downsampled though right? maybe trim here # TODO
-return bds
+            bold_signals_truncated = bold_signals[27:, :, :, :] # now ti is (1200, 1, 108, 1) # TODO
+            bold_signals_2d = bold_signals_truncated.reshape(1200, 108) # TODO
+                    
+            bold = bold.reshape(bold_monitor._stock.shape[1:]) # but bold is already this?
+            return [bold_signals_2d]
+                
+                
+        b = Bold_rsHRF_compute_bold(signal, dt=dt)
+        #step = int(np.round(self.tr / dt))  # each step is the length of the TR, in milliseconds
+        #bds = b[step - 1::step, :] # my bold is already downsampled though right? maybe trim here # TODO
+        return bds
