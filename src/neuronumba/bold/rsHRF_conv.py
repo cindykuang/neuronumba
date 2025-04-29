@@ -29,6 +29,14 @@ class Bold_rsHRF(Bold):
         #label="Duration (ms)"
         #doc= """Duration of the hrf kernel""",)
         #order=-1)
+        
+    number_of_nodes = Attr(
+    	default=108,
+    	required=True)
+    	
+    voi = Attr(
+    	default=[0],
+    	required=True)
 
     _interim_period = None
     _interim_istep = None
@@ -38,71 +46,93 @@ class Bold_rsHRF(Bold):
     _stock_sample_rate = 2 ** -2
     hemodynamic_response_function = None
     
-    def compute_hrf(self):
-        """
-        Compute the hemodynamic response function.
+    def config_for_sim(self):
+           
+        self._stock_sample_rate = 2.0**-2 #/ms   # this is 0.25 , means ONE sample every 4 ms
+       	magic_number = self.hrf_length #24000.0
+       	#Length of history needed for convolution in steps @ _stock_sample_rate
+       	required_history_length = self._stock_sample_rate * magic_number # 6000.0
+       	self._stock_steps = np.ceil(required_history_length).astype(int) # 6000
+       	stock_time_max    = magic_number/1000.0   # 24
+       	stock_time_step   = stock_time_max / self._stock_steps      # 0.004   
+       	self._stock_time  = np.arange(0.0, stock_time_max, stock_time_step) # this is an array of (6000,) of timesteps that are 0.004 each, 24s true time total
+       	
+       	self._interim_period = 1.0 / self._stock_sample_rate #4 # so every 4 steps of the stock sample rate 
+       	self._interim_istep = int(round(self._interim_period / self.dt)) # interim period in integration time 		steps (my actual simulation) #every 6 steps of my actual sim at that res
+       	
+       	self.istep = self.period / self.dt # 1000 # it takes every 1000th step
+       	
+       	sample_shape = self.voi.shape[0], self.number_of_nodes, 1
+       	self._interim_stock = np.zeros((self._interim_istep,) + sample_shape) # (6, 1, 108, 1)
+       	self._stock = np.zeros((self._stock_steps,) + sample_shape) # (6000, 1, 108, 1)
 
-        """
-        self._stock_sample_rate = 2.0**-2 #/ms    # NOTE: An integral multiple of dt
-        magic_number = self.hrf_length #* 0.8      # truncates G, volterra kernel, once ~zero
-        #Length of history needed for convolution in steps @ _stock_sample_rate
-        required_history_length = self._stock_sample_rate * magic_number # 3840 for tau_s=0.8
-        self._stock_steps = numpy.ceil(required_history_length).astype(int)
-        stock_time_max    = magic_number/1000.0                                # [s]
-        stock_time_step   = stock_time_max / self._stock_steps                 # [s]
-        self._stock_time  = numpy.arange(0.0, stock_time_max, stock_time_step) # [s]
-        self.log.debug("Bold requires %d steps for HRF kernel convolution", self._stock_steps)            # if the input has not been obtained from file
-        #Compute the HRF kernel
-        G = self.hrf_kernel.evaluate(self._stock_time)
-        if isinstance(self.hrf_kernel, equations.RestingStateHRF): 
-            #rsHRF for each region, reversed and upsampled to self._stock_steps
-            self.hemodynamic_response_function = G 
-        #else :
-            #Reverse it, need it into the past for matrix-multiply of stock
-            #G = G[::-1]
-            #self.hemodynamic_response_function = G[numpy.newaxis, :]
-        #Interim stock configuration
-        self._interim_period = 1.0 / self._stock_sample_rate #period in ms
-        self._interim_istep = int(round(self._interim_period / self.dt)) # interim period in integration time steps
-        #self.log.debug('Bold HRF shape %s, interim period & istep %d & %d',
-                  #self.hemodynamic_response_function.shape, self._interim_period, self._interim_istep)                
+
+
+    # def compute_hrf(self):
+    #     """
+    #     Compute the hemodynamic response function.
+
+    #     """
+    #     self._stock_sample_rate = 2.0**-2 #/ms    # NOTE: An integral multiple of dt
+    #     magic_number = self.hrf_length #* 0.8      # truncates G, volterra kernel, once ~zero
+    #     #Length of history needed for convolution in steps @ _stock_sample_rate
+    #     required_history_length = self._stock_sample_rate * magic_number # 3840 for tau_s=0.8
+    #     self._stock_steps = numpy.ceil(required_history_length).astype(int)
+    #     stock_time_max    = magic_number/1000.0                                # [s]
+    #     stock_time_step   = stock_time_max / self._stock_steps                 # [s]
+    #     self._stock_time  = numpy.arange(0.0, stock_time_max, stock_time_step) # [s]
+    #     self.log.debug("Bold requires %d steps for HRF kernel convolution", self._stock_steps)            # if the input has not been obtained from file
+    #     #Compute the HRF kernel
+    #     G = self.hrf_kernel.evaluate(self._stock_time)
+    #     if isinstance(self.hrf_kernel, equations.RestingStateHRF): 
+    #         #rsHRF for each region, reversed and upsampled to self._stock_steps
+    #         self.hemodynamic_response_function = G 
+    #     #else :
+    #         #Reverse it, need it into the past for matrix-multiply of stock
+    #         #G = G[::-1]
+    #         #self.hemodynamic_response_function = G[numpy.newaxis, :]
+    #     #Interim stock configuration
+    #     self._interim_period = 1.0 / self._stock_sample_rate #period in ms
+    #     self._interim_istep = int(round(self._interim_period / self.dt)) # interim period in integration time steps
+    #     #self.log.debug('Bold HRF shape %s, interim period & istep %d & %d',
+    #               #self.hemodynamic_response_function.shape, self._interim_period, self._interim_istep)                
                   
-    def _config_vois(self, simulator):
-        self.voi = self.variables_of_interest
-        if self.voi is None or self.voi.size == 0:
-            self.voi = numpy.r_[:len(simulator.model.variables_of_interest)]
+    # def _config_vois(self, simulator):
+    #     self.voi = self.variables_of_interest
+    #     if self.voi is None or self.voi.size == 0:
+    #         self.voi = numpy.r_[:len(simulator.model.variables_of_interest)]
 
-    def _config_time(self, simulator):
-        self.dt = simulator.integrator.dt
-        self.istep = ReferenceBackend.iround(self.period / self.dt)
+    # def _config_time(self, simulator):
+    #     self.dt = simulator.integrator.dt
+    #     self.istep = ReferenceBackend.iround(self.period / self.dt)
 
-    def config_for_sim(self, simulator):
-        """Configure monitor for given simulator.
+    # def config_for_sim_old(self, simulator):
+    #     """Configure monitor for given simulator.
 
-        Grab the Simulator's integration step size. Set the monitor's variables
-        of interest based on the Monitor's 'variables_of_interest' attribute, if
-        it was specified, otherwise use the 'variables_of_interest' specified 
-        for the Model. Calculate the number of integration steps (isteps)
-        between returns by the record method. This method is called from within
-        the the Simulator's configure() method.
+    #     Grab the Simulator's integration step size. Set the monitor's variables
+    #     of interest based on the Monitor's 'variables_of_interest' attribute, if
+    #     it was specified, otherwise use the 'variables_of_interest' specified 
+    #     for the Model. Calculate the number of integration steps (isteps)
+    #     between returns by the record method. This method is called from within
+    #     the the Simulator's configure() method.
 
-        """
-        self._config_vois(simulator)
-        self._config_time(simulator)                                                
+    #     """
+    #     self._config_vois(simulator)
+    #     self._config_time(simulator)                                                
 
-    def config_for_sim(self, simulator):
-        super(Bold, self).config_for_sim(simulator)
-        self.compute_hrf()
-        if isinstance(self.hrf_kernel, equations.RestingStateHRF):                          # if HRF has been obtained from a file
-            if self.hemodynamic_response_function.shape[0] != simulator.number_of_nodes:    # if the number of nodes do not match for the input and simulator
-                self.log.error("Unexpect File Input! Expected Input of shape: %d, Obtained Input of Shape: %d", simulator.number_of_nodes, self.hemodynamic_response_function.shape[0])
-        sample_shape = self.voi.shape[0], simulator.number_of_nodes, simulator.model.number_of_modes
-        self._interim_stock = numpy.zeros((self._interim_istep,) + sample_shape)
-        self.log.debug("BOLD inner buffer %s %.2f MB" % (
-            self._interim_stock.shape, self._interim_stock.nbytes/2**20))
-        self._stock = numpy.zeros((self._stock_steps,) + sample_shape)
-        self.log.debug("BOLD outer buffer %s %.2f MB" % (
-            self._stock.shape, self._stock.nbytes/2**20))
+    # def config_for_sim(self, simulator):
+    #     super(Bold, self).config_for_sim(simulator)
+    #     self.compute_hrf()
+    #     if isinstance(self.hrf_kernel, equations.RestingStateHRF):                          # if HRF has been obtained from a file
+    #         if self.hemodynamic_response_function.shape[0] != simulator.number_of_nodes:    # if the number of nodes do not match for the input and simulator
+    #             self.log.error("Unexpect File Input! Expected Input of shape: %d, Obtained Input of Shape: %d", simulator.number_of_nodes, self.hemodynamic_response_function.shape[0])
+    #     sample_shape = self.voi.shape[0], simulator.number_of_nodes, simulator.model.number_of_modes
+    #     self._interim_stock = numpy.zeros((self._interim_istep,) + sample_shape)
+    #     self.log.debug("BOLD inner buffer %s %.2f MB" % (
+    #         self._interim_stock.shape, self._interim_stock.nbytes/2**20))
+    #     self._stock = numpy.zeros((self._stock_steps,) + sample_shape)
+    #     self.log.debug("BOLD outer buffer %s %.2f MB" % (
+    #         self._stock.shape, self._stock.nbytes/2**20))
             
     # this is the sample method from amogh's bold monitors.py
     # def sample():
@@ -120,19 +150,19 @@ class Bold_rsHRF(Bold):
             # find position within interim buffer where this current step should store data
             # % gives remainder when dividing by interim_istep (6) so will cycle 0 1 2 3 4 5 0 1
             # but bc of -1: will cycle -1 0 1 2 3 4 -1 (-1 means last position in the buffer - wrapping around)
-                bold_monitor._interim_stock[((step % bold_monitor._interim_istep) - 1), 0, :, 0] = signal[step-1, :]
+                self._interim_stock[((step % self._interim_istep) - 1), 0, :, 0] = signal[step-1, :]
             
             # EVERY 6 (interim_istep) STEPS: compute an average of the neural activity in this interim window and update the MAIN STOCK
-                if step % bold_monitor._interim_istep == 0:
-                    avg_interim_stock = np.mean(bold_monitor._interim_stock, axis=0)
-                    bold_monitor._stock[((step//bold_monitor._interim_istep % bold_monitor._stock_steps) - 1), :] = avg_interim_stock
+                if step % self._interim_istep == 0:
+                    avg_interim_stock = np.mean(self._interim_stock, axis=0)
+                    self._stock[((step//self._interim_istep % self._stock_steps) - 1), :] = avg_interim_stock
                     # Stores this downsampled activity in the stock buffer used for convolution
                     
             # EVERY 1000 (istep) STEPS:    
-                if step % bold_monitor.istep == 0:
-                    time = step * bold_monitor.dt # true time, given in ms
-                    hrf = np.roll(bold_monitor.hemodynamic_response_function,
-                                     ((step//bold_monitor._interim_istep % bold_monitor._stock_steps) - 1), # this is just stock buffer position
+                if step % self.istep == 0:
+                    time = step * self.dt # true time, given in ms
+                    hrf = np.roll(self.hemodynamic_response_function,
+                                     ((step//self._interim_istep % self._stock_steps) - 1), # this is just stock buffer position
                                      axis=1)
                 # hrf is shape (108, 6000)
                 # transposes stock array: orig dimensions were (timesteps, state_vars, brain regions, modes) 
@@ -142,10 +172,10 @@ class Bold_rsHRF(Bold):
                     # convolve each ROI separately
                     for i in range(hrf.shape[0]):                                    
                         if i == 0: 
-                            bold = np.expand_dims(np.tensordot(bold_monitor._stock.transpose(1, 2, 0, 3)[:,i,:,:], hrf[i], axes=([1], [0])), axis = 0)
+                            bold = np.expand_dims(np.tensordot(self._stock.transpose(1, 2, 0, 3)[:,i,:,:], hrf[i], axes=([1], [0])), axis = 0)
                             # (1, 1, 1)
                         else:
-                            bold = np.vstack((bold, np.expand_dims(np.tensordot(bold_monitor._stock.transpose(1, 2, 0, 3)[:,i,:,:], hrf[i], axes=([1], [0])), axis = 0)))
+                            bold = np.vstack((bold, np.expand_dims(np.tensordot(self._stock.transpose(1, 2, 0, 3)[:,i,:,:], hrf[i], axes=([1], [0])), axis = 0)))
                             # at the end bold is (108, 1, 1)
                     
                     bold = bold.transpose(1, 0, 2) # now bold is (1, 108, 1)
@@ -159,11 +189,11 @@ class Bold_rsHRF(Bold):
             bold_signals_truncated = bold_signals[27:, :, :, :] # now ti is (1200, 1, 108, 1) # TODO
             bold_signals_2d = bold_signals_truncated.reshape(1200, 108) # TODO
                     
-            bold = bold.reshape(bold_monitor._stock.shape[1:]) # but bold is already this?
-            return [bold_signals_2d]
+            bold = bold.reshape(self._stock.shape[1:]) # but bold is already this?
+            return bold_signals_2d
                 
                 
-        b = Bold_rsHRF_compute_bold(signal, dt=dt)
+        bds = Bold_rsHRF_compute_bold(signal, dt=dt)
         #step = int(np.round(self.tr / dt))  # each step is the length of the TR, in milliseconds
         #bds = b[step - 1::step, :] # my bold is already downsampled though right? maybe trim here # TODO
         return bds
