@@ -32,6 +32,8 @@ class Bold_rsHRF(Bold):
         #doc= """Duration of the hrf kernel""",)
         #order=-1)
         
+    dt = Attr(default=0.72, required=True) #actual sampling rate of input signal here
+        
     number_of_nodes = Attr(
     	default=108,
     	required=True)

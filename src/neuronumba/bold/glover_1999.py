@@ -7,11 +7,13 @@ from scipy.special import gamma as sp_gamma
 
 class BoldGlover1999(Bold):
 
-    period = Attr(default=720.0, required=True)
+    period = Attr(default=720.0, required=True) #timestep to be convolved to (actual TR)
 
     hrf_length = Attr(default=24000, required=True)
     
     number_of_nodes = Attr(default=108, required=True)
+    
+    dt = Attr(default=0.72, required=True) #actual sampling rate of input signal here
     	
     voi = Attr(default=[0], required=True)
 
