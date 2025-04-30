@@ -3,6 +3,8 @@ from numba import njit
 
 from neuronumba.basic.attr import Attr
 from neuronumba.bold.base_bold import Bold
+from scipy import signal, stats
+import scipy.io as sio
 # TODO: need to figure out how to import equations here
 
 class Bold_rsHRF(Bold):
@@ -67,6 +69,16 @@ class Bold_rsHRF(Bold):
        	self._stock = np.zeros((self._stock_steps,) + sample_shape) # (6000, 1, 108, 1)
 
 
+    def compute_hrf(self, hrfa):
+        
+        #hrfa = sio.loadmat(rsHRF_filename)['hrfa'] # (101, 108) # ntimepoints x nROIs, not reversed or upsampled
+        hrfa_t = hrfa.T
+	
+	# reverses it and upsamples it to self._stock_steps to prepare for convolution
+        upsample=lambda x : signal.resample_poly(x[::-1], self._stock_steps, hrfa_t.shape[1]) #goes from 101 to 6000
+        hrfa = np.apply_along_axis(upsample, 1, hrfa_t)
+
+        self.hemodynamic_response_function = hrfa # (108, 6000)
 
     # def compute_hrf(self):
     #     """
