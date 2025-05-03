@@ -1,7 +1,7 @@
 import os
 
 import numpy as np
-
+import yaml #added
 import neuronumba.tools.hdf as hdf
 
 def load_2d_matrix(filename, delimiter=None, index=None):
@@ -24,3 +24,7 @@ def load_2d_matrix(filename, delimiter=None, index=None):
         return np.load(filename, allow_pickle=True)[index]
     else:
         raise RuntimeError("Unrecognized file extension")
+# added        
+def load_config(config_path):
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
