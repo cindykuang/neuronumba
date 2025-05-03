@@ -19,7 +19,7 @@ def load_2d_matrix(filename, delimiter=None, index=None):
             raise RuntimeError("You have to provide an index inse the file")
         return hdf.loadmat(filename)[index]
     elif file_extension == '.npy':
-        return np.load(filename)
+        return np.loadtxt(filename) #changed
     elif file_extension == '.npz':
         return np.load(filename, allow_pickle=True)[index]
     else:
