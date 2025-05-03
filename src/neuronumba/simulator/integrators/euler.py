@@ -27,7 +27,6 @@ class EulerStochastic(Integrator):
 
     sigmas = Attr(default=None, required=True)
     _sqrt_dt = Attr(dependant=True)
-    #seed = Attr(default=None, required=False) #added, changed
 
     def _init_dependant(self):
         self._sqrt_dt = np.sqrt(self.dt)
@@ -40,9 +39,6 @@ class EulerStochastic(Integrator):
 
         @nb.njit(nb.types.UniTuple(nb.f8[:, :], 2)(nb.f8[:, :], nb.f8[:, :]))
         def scheme(state: NDA_f8_2d, coupling: NDA_f8_2d):
-            # set seed if provided
-            #if seed is not None: #added, changed
-                #np.random.seed(seed) #added, changed
             d_state, observed = dfun(state, coupling)
             if stimulus.shape[1] == state.shape[1]:
                 d_state = d_state + stimulus
