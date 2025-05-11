@@ -19,6 +19,62 @@ class History(HasAttr):
         self.n_rois = self.weights.shape[0]
 
 
+# class HistoryDense(History):
+
+#     # Global linear coupling
+#     g = Attr(default=None, required=True)
+#     delays = Attr(default=None, required=True)
+#     dt = Attr(required=True)
+
+#     i_delays = Attr(dependant=True)
+#     buffer = Attr(dependant=True)
+#     n_time = Attr(dependant=True)
+
+#     def _init_dependant(self):
+#         self.i_delays = np.rint(self.delays / self.dt).astype(np.int32)
+#         self.n_time = np.max(self.i_delays) + 1
+#         self.buffer = np.zeros((len(self.c_vars), self.n_time, self.n_rois))
+
+#     def get_numba_update(self):
+#         # buffer = self.buffer
+#         n_cvars = self.n_cvars
+#         c_vars = self.c_vars
+#         # addr = buffer.ctypes.data
+#         b_addr, b_shape, b_dtype = addr.get_addr(self.buffer)
+
+#         @nb.njit(nb.void(nb.intc, nb.f8[:, :]))
+#         def c_update(step: nb.intc, state: NDA_f8_2d):
+#             # data = nb.carray(addr.address_as_void_pointer(addr), buffer.shape,
+#             #                  dtype=buffer.dtype)
+#             data = addr.create_carray(b_addr, b_shape, b_dtype)
+#             for i in range(n_cvars):
+#                 data[i, step % self.n_time, :] = state[c_vars[i], :]
+
+#         return c_update
+
+#     def get_numba_sample(self):
+#         buffer = self.buffer
+#         n_time = self.n_time
+#         weights = self.weights
+#         i_delays = self.i_delays
+#         c_vars = self.c_vars
+#         n_cvars = self.n_cvars
+#         n_rois = self.n_rois
+#         g = self.g
+
+#         @nb.njit(nb.f8[:, :](nb.intc))
+#         def h_sample(step):
+#             time_idx = (step - 1 - i_delays + n_time) % n_time
+#             result = np.empty((n_cvars, n_rois))
+#             for v in c_vars:
+#                 delayed_state = np.empty((n_rois, n_rois))
+#                 for i in range(n_rois):
+#                     delayed_state[i] = buffer[v, time_idx[i], i]
+#                 result[v] = np.sum(weights * delayed_state, axis=0)
+#             return g * result
+
+#         return h_sample
+
 class HistoryDense(History):
 
     # Global linear coupling
@@ -31,16 +87,18 @@ class HistoryDense(History):
     n_time = Attr(dependant=True)
 
     def _init_dependant(self):
-        self.i_delays = np.rint(self.delays / self.dt).astype(np.int32)
+        super()._init_dependant()
+        self.i_delays = np.rint(self.delays / self.dt).astype(np.int32)  #108 x 108
         self.n_time = np.max(self.i_delays) + 1
-        self.buffer = np.zeros((len(self.c_vars), self.n_time, self.n_rois))
+        self.buffer = np.zeros((len(self.c_vars), self.n_time, self.n_rois)) #(1, 2762, 108)
 
     def get_numba_update(self):
         # buffer = self.buffer
-        n_cvars = self.n_cvars
-        c_vars = self.c_vars
+        n_cvars = self.n_cvars #1
+        c_vars = self.c_vars #[0]
+        n_time = self.n_time  # changed, added #2762
         # addr = buffer.ctypes.data
-        b_addr, b_shape, b_dtype = addr.get_addr(self.buffer)
+        b_addr, b_shape, b_dtype = addr.get_addr(self.buffer) #7523595264, (1, 2762, 108), float64
 
         @nb.njit(nb.void(nb.intc, nb.f8[:, :]))
         def c_update(step: nb.intc, state: NDA_f8_2d):
@@ -48,7 +106,7 @@ class HistoryDense(History):
             #                  dtype=buffer.dtype)
             data = addr.create_carray(b_addr, b_shape, b_dtype)
             for i in range(n_cvars):
-                data[i, step % self.n_time, :] = state[c_vars[i], :]
+                data[i, step % n_time, :] = state[c_vars[i], :] #changed, took away self.n_time reference
 
         return c_update
 
@@ -61,21 +119,46 @@ class HistoryDense(History):
         n_cvars = self.n_cvars
         n_rois = self.n_rois
         g = self.g
-
+        
+        b_addr, b_shape, b_dtype = addr.get_addr(self.buffer)  # changed, added - Get buffer address
+        #original - works!!
         @nb.njit(nb.f8[:, :](nb.intc))
         def h_sample(step):
+            buffer = addr.create_carray(b_addr, b_shape, b_dtype)  # changed, added - Create numba-compatible buffer
             time_idx = (step - 1 - i_delays + n_time) % n_time
             result = np.empty((n_cvars, n_rois))
             for v in c_vars:
                 delayed_state = np.empty((n_rois, n_rois))
                 for i in range(n_rois):
                     delayed_state[i] = buffer[v, time_idx[i], i]
-                result[v] = np.sum(weights * delayed_state, axis=0)
-            return g * result
+                result[v] = np.sum(weights * delayed_state, axis=0) #deleted
+            return g * result 
+
+        # @nb.njit(nb.f8[:, :](nb.intc))
+        # def h_sample(step):
+        #     buffer = addr.create_carray(b_addr, b_shape, b_dtype)  # changed, added - Create numba-compatible buffer
+        #     time_idx = (step - 1 - i_delays + n_time) % n_time
+        #     result = np.empty((n_cvars, n_rois))
+        #     for v in c_vars:
+        #         delayed_state = np.empty((n_rois, n_rois))
+        #         for i in range(n_rois):
+        #             delayed_state[i] = buffer[v, time_idx[i], i]
+        #         #result[v] = np.sum(weights * delayed_state, axis=0) #deleted
+        #         result[v] = delayed_state #added, changed
+        #     return result # g * result #changed
+        
+        # @nb.njit(nb.f8[:, :](nb.intc))
+        # def h_sample(step):
+        #     buffer = addr.create_carray(b_addr, b_shape, b_dtype)
+        #     time_idx = (step - 1 - i_delays + n_time) % n_time
+        #     result = np.empty((n_cvars, n_rois))
+        #     for i, v in enumerate(c_vars):
+        #         for j in range(n_rois):
+        #             result[i, j] = buffer[v, time_idx[j, j], j]  # Only get diagonal elements
+        #     return result
+        
 
         return h_sample
-
-
 
 
 class HistoryNoDelays(History):
