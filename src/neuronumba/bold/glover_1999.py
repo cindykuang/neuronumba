@@ -130,7 +130,7 @@ class BoldGlover1999(Bold):
             bold_signals = np.array(bold_signals)  # Should be shape (num_timepoints, 1, 108, 1) # (1227, 1, 108, 1)
             bold_times = np.array(bold_times)    # (1227,)
             
-            bold_signals_truncated = bold_signals[27:, :, :, :] # now ti is (1200, 1, 108, 1) # TODO
+            bold_signals_truncated = bold_signals[40:, :, :, :] # now ti is (1200, 1, 108, 1) # TODO
             bold_signals_2d = bold_signals_truncated.reshape(1200, 108) # TODO
                     
             #bold = bold.reshape(self._stock.shape[1:]) # but bold is already this?
