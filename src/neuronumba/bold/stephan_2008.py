@@ -41,7 +41,7 @@ class BoldStephan2008(Bold):
     # saturation Y:  R_iv = r0*[(1-Y)-(1-Y0)]. This value of r0 from [Stephan et al. 2007]
     theta0 = Attr(default=40.3, required=False)  # (s)^-1, frequency offset at the outer surface of magnetized vessels
 
-    t_min = Attr(default=20.0, required=False) # discard first t_min seconds from signal #changed default
+    t_min = Attr(default=28.8, required=False) # discard first t_min seconds from signal #changed default
 
     rtol = Attr(default=1e-05, required=False)
     atol = Attr(default=1e-08, required=False)
