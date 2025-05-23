@@ -70,10 +70,10 @@ class Simulator(HasAttr):
 # =====================================================================================
 # Convenience method to put all components together
 # =====================================================================================
-def simulate_nodelay(model, integrator, weights, obs_var, sampling_period, t_max_neuronal, t_warmup):
+def simulate_nodelay(model, integrator, weights, obs_var, sampling_period, t_max_neuronal, t_warmup, speed):
     n_rois = weights.shape[0]
     lengths = np.random.rand(n_rois, n_rois)*10.0 + 1.0
-    speed = 1.0
+    speed = speed
     con = Connectivity(weights=weights, lengths=lengths, speed=speed)
     history = HistoryNoDelays()
     monitor = TemporalAverage(period=sampling_period, monitor_vars=model.get_var_info([obs_var]))
