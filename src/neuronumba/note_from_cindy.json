@@ -1,6 +1,6 @@
 2025-06-17 note from Cindy
 
 this is the working branch for neuronumba simulations without delays for HCP dataset - trimming 28.8s (the first 40 TRs with TR=0.72s) to avoid initial transient spike 
-used for thesis final HCP n=107 simulations (but not HCP Model Optimization G-sweep)
+used for thesis final HCP n=107 simulations (but not HCP Model Optimization G-sweep - that used version that trimmed the first 27 TRs with TR=0.72s so around 19.44s but still had huge transient spike - can check with detached head at commit 013918b
 
 
