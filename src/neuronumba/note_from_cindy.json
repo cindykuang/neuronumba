@@ -1,0 +1,6 @@
+2025-06-17 note from Cindy
+
+this is the working branch for neuronumba simulations without delays for NIMH aging dataset - trimming 30s (the first 15 TRs with TR=2s) to avoid initial transient spike 
+used for thesis final NIMH n=31 simulations AND NIMH n=25 Model Optimization G-sweep
+
+
